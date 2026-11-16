@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ma Boutique — Suivi des ventes, approvisionnements et dépenses</title>
+<style>
+  :root {
+    --vert: #1f7a4d;
+    --vert-clair: #e6f3ec;
+    --rouge: #b3261e;
+    --rouge-clair: #fbeaea;
+    --orange: #b86e00;
+    --orange-clair: #fdf1de;
+    --bleu: #1d5fa8;
+    --bleu-clair: #e7eff9;
+    --texte: #1d1d1d;
+    --gris: #6b6b6b;
+    --bord: #e2e2e2;
+    --fond: #f6f6f3;
+    --blanc: #ffffff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--fond);
+    color: var(--texte);
+    font-size: 16px;
+    padding-bottom: 80px;
+  }
+  header {
+    background: var(--vert);
+    color: #fff;
+    padding: 14px 16px;
+    position: sticky; top: 0; z-index: 10;
+  }
+  header h1 { font-size: 1.15rem; }
+  header p { font-size: .8rem; opacity: .85; }
+  main { max-width: 900px; margin: 0 auto; padding: 16px; }
+  section { display: none; }
+  section.active { display: block; }
+  h2 { font-size: 1.1rem; margin: 8px 0 12px; }
+  h3 { font-size: 1rem; margin: 18px 0 8px; }
+
+  /* Cartes du tableau de bord */
+  .cartes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .carte {
+    background: var(--blanc); border-radius: 10px; padding: 12px;
+    border-left: 5px solid var(--gris);
+  }
+  .carte .titre { font-size: .8rem; color: var(--gris); }
+  .carte .valeur { font-size: 1.15rem; font-weight: 700; margin-top: 4px; }
+  .carte.ventes { border-color: var(--vert); }
+  .carte.appro { border-color: var(--bleu); }
+  .carte.depenses { border-color: var(--orange); }
+  .carte.solde { border-color: var(--texte); }
+  .positif { color: var(--vert); }
+  .negatif { color: var(--rouge); }
+
+  /* Formulaires */
+  form {
+    background: var(--blanc); border-radius: 10px; padding: 14px;
+    display: grid; gap: 10px; margin-bottom: 16px;
+  }
+  .ligne { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  label { font-size: .85rem; color: var(--gris); display: block; margin-bottom: 4px; }
+  input, select {
+    width: 100%; padding: 10px; font-size: 1rem;
+    border: 1px solid var(--bord); border-radius: 8px; background: #fff;
+  }
+  input:focus, select:focus { outline: 2px solid var(--vert); border-color: transparent; }
+  button {
+    padding: 12px; font-size: 1rem; font-weight: 600; border: none;
+    border-radius: 8px; cursor: pointer; background: var(--vert); color: #fff;
+  }
+  button.secondaire { background: var(--blanc); color: var(--vert); border: 1px solid var(--vert); }
+  .total-form { font-size: .9rem; color: var(--gris); }
+  .total-form strong { color: var(--texte); }
+  .alerte { font-size: .85rem; color: var(--rouge); min-height: 1em; }
+
+  /* Filtres de période */
+  .filtres { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .filtres button {
+    padding: 6px 12px; font-size: .85rem; font-weight: 500;
+    background: var(--blanc); color: var(--texte); border: 1px solid var(--bord);
+  }
+  .filtres button.actif { background: var(--vert); color: #fff; border-color: var(--vert); }
+
+  /* Tableaux */
+  .tableau { background: var(--blanc); border-radius: 10px; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  th, td { padding: 10px 8px; text-align: left; border-bottom: 1px solid var(--bord); white-space: nowrap; }
+  th { font-size: .78rem; color: var(--gris); font-weight: 600; background: #fafafa; }
+  td.num, th.num { text-align: right; }
+  tr:last-child td { border-bottom: none; }
+  .vide { padding: 20px; text-align: center; color: var(--gris); font-size: .9rem; }
+  .suppr {
+    background: none; color: var(--rouge); padding: 4px 8px; font-size: .85rem; font-weight: 500;
+  }
+  .badge { padding: 2px 8px; border-radius: 10px; font-size: .78rem; font-weight: 600; }
+  .badge.ok { background: var(--vert-clair); color: var(--vert); }
+  .badge.bas { background: var(--orange-clair); color: var(--orange); }
+  .badge.rupture { background: var(--rouge-clair); color: var(--rouge); }
+
+  /* Navigation en bas (adaptée au téléphone) */
+  nav {
+    position: fixed; bottom: 0; left: 0; right: 0; background: var(--blanc);
+    border-top: 1px solid var(--bord); display: flex; z-index: 10;
+  }
+  nav button {
+    flex: 1; background: none; color: var(--gris); border-radius: 0;
+    padding: 10px 2px; font-size: .72rem; font-weight: 500;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+  }
+  nav button .ico { font-size: 1.3rem; }
+  nav button.actif { color: var(--vert); font-weight: 700; }
+
+  @media (min-width: 700px) {
+    .cartes { grid-template-columns: repeat(4, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Ma Boutique</h1>
+  <p>Suivi des ventes, approvisionnements et dépenses</p>
+</header>
+
+<main>
+
+  <!-- ============ TABLEAU DE BORD ============ -->
+  <section id="accueil" class="active">
+    <h2>Tableau de bord</h2>
+    <div class="filtres" data-cible="accueil">
+      <button data-periode="jour" class="actif">Aujourd'hui</button>
+      <button data-periode="semaine">7 jours</button>
+      <button data-periode="mois">Ce mois</button>
+      <button data-periode="tout">Tout</button>
+    </div>
+    <div class="cartes">
+      <div class="carte ventes"><div class="titre">Ventes</div><div class="valeur" id="kpi-ventes">0</div></div>
+      <div class="carte appro"><div class="titre">Approvisionnements</div><div class="valeur" id="kpi-appro">0</div></div>
+      <div class="carte depenses"><div class="titre">Dépenses</div><div class="valeur" id="kpi-depenses">0</div></div>
+      <div class="carte solde"><div class="titre">Solde (ventes − achats − dépenses)</div><div class="valeur" id="kpi-solde">0</div></div>
+    </div>
+
+    <h3>État du stock</h3>
+    <div class="tableau">
+      <table>
+        <thead><tr><th>Produit</th><th>Catégorie</th><th class="num">Stock</th><th>État</th></tr></thead>
+        <tbody id="liste-stock"></tbody>
+      </table>
+    </div>
+
+    <h3>Produits les plus vendus</h3>
+    <div class="tableau">
+      <table>
+        <thead><tr><th>Produit</th><th class="num">Quantité</th><th class="num">Montant</th></tr></thead>
+        <tbody id="liste-top"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ VENTES ============ -->
+  <section id="ventes">
+    <h2>Enregistrer une vente</h2>
+    <form id="form-vente">
+      <div class="ligne">
+        <div><label for="v-date">Date</label><input type="date" id="v-date" required></div>
+        <div><label for="v-produit">Produit</label><select id="v-produit" required></select></div>
+      </div>
+      <div class="ligne">
+        <div><label for="v-quantite">Quantité</label><input type="number" id="v-quantite" min="1" step="1" required></div>
+        <div><label for="v-prix">Prix unitaire (FCFA)</label><input type="number" id="v-prix" min="0" step="1" required></div>
+      </div>
+      <div class="total-form">Total : <strong id="v-total">0 FCFA</strong></div>
+      <div class="alerte" id="v-alerte"></div>
+      <button type="submit">Enregistrer la vente</button>
+    </form>
+
+    <h3>Historique des ventes</h3>
+    <div class="filtres" data-cible="ventes">
+      <button data-periode="jour">Aujourd'hui</button>
+      <button data-periode="semaine">7 jours</button>
+      <button data-periode="mois">Ce mois</button>
+      <button data-periode="tout" class="actif">Tout</button>
+    </div>
+    <div class="tableau">
+      <table>
+        <thead><tr><th>Date</th><th>Produit</th><th class="num">Qté</th><th class="num">Prix u.</th><th class="num">Total</th><th></th></tr></thead>
+        <tbody id="liste-ventes"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ APPROVISIONNEMENTS ============ -->
+  <section id="appro">
+    <h2>Enregistrer un approvisionnement</h2>
+    <form id="form-appro">
+      <div class="ligne">
+        <div><label for="a-date">Date</label><input type="date" id="a-date" required></div>
+        <div><label for="a-produit">Produit</label><select id="a-produit" required></select></div>
+      </div>
+      <div class="ligne">
+        <div><label for="a-quantite">Quantité</label><input type="number" id="a-quantite" min="1" step="1" required></div>
+        <div><label for="a-prix">Prix d'achat unitaire (FCFA)</label><input type="number" id="a-prix" min="0" step="1" required></div>
+      </div>
+      <div class="total-form">Total : <strong id="a-total">0 FCFA</strong></div>
+      <button type="submit">Enregistrer l'approvisionnement</button>
+    </form>
+
+    <h3>Historique des approvisionnements</h3>
+    <div class="filtres" data-cible="appro">
+      <button data-periode="jour">Aujourd'hui</button>
+      <button data-periode="semaine">7 jours</button>
+      <button data-periode="mois">Ce mois</button>
+      <button data-periode="tout" class="actif">Tout</button>
+    </div>
+    <div class="tableau">
+      <table>
+        <thead><tr><th>Date</th><th>Produit</th><th class="num">Qté</th><th class="num">Prix achat</th><th class="num">Total</th><th></th></tr></thead>
+        <tbody id="liste-appro"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ DÉPENSES ============ -->
+  <section id="depenses">
+    <h2>Enregistrer une dépense</h2>
+    <form id="form-depense">
+      <div class="ligne">
+        <div><label for="d-date">Date</label><input type="date" id="d-date" required></div>
+        <div><label for="d-montant">Montant (FCFA)</label><input type="number" id="d-montant" min="0" step="1" required></div>
+      </div>
+      <div><label for="d-libelle">Libellé (transport, loyer, électricité…)</label><input type="text" id="d-libelle" maxlength="200" required></div>
+      <button type="submit">Enregistrer la dépense</button>
+    </form>
+
+    <h3>Historique des dépenses</h3>
+    <div class="filtres" data-cible="depenses">
+      <button data-periode="jour">Aujourd'hui</button>
+      <button data-periode="semaine">7 jours</button>
+      <button data-periode="mois">Ce mois</button>
+      <button data-periode="tout" class="actif">Tout</button>
+    </div>
+    <div class="tableau">
+      <table>
+        <thead><tr><th>Date</th><th>Libellé</th><th class="num">Montant</th><th></th></tr></thead>
+        <tbody id="liste-depenses"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ PRODUITS ET CATÉGORIES ============ -->
+  <section id="produits">
+    <h2>Ajouter une catégorie</h2>
+    <form id="form-categorie">
+      <div><label for="c-libelle">Nom de la catégorie</label><input type="text" id="c-libelle" maxlength="100" required></div>
+      <div class="alerte" id="c-alerte"></div>
+      <button type="submit" class="secondaire">Ajouter la catégorie</button>
+    </form>
+
+    <h2>Ajouter un produit</h2>
+    <form id="form-produit">
+      <div><label for="p-designation">Désignation</label><input type="text" id="p-designation" maxlength="150" required></div>
+      <div class="ligne">
+        <div><label for="p-prix">Prix de vente (FCFA)</label><input type="number" id="p-prix" min="0" step="1" required></div>
+        <div><label for="p-categorie">Catégorie</label><select id="p-categorie" required></select></div>
+      </div>
+      <div class="alerte" id="p-alerte"></div>
+      <button type="submit">Ajouter le produit</button>
+    </form>
+
+    <h3>Liste des produits</h3>
+    <div class="tableau">
+      <table>
+        <thead><tr><th>Désignation</th><th>Catégorie</th><th class="num">Prix de vente</th><th></th></tr></thead>
+        <tbody id="liste-produits"></tbody>
+      </table>
+    </div>
+
+    <h3>Liste des catégories</h3>
+    <div class="tableau">
+      <table>
+        <thead><tr><th>Libellé</th><th class="num">Nb produits</th><th></th></tr></thead>
+        <tbody id="liste-categories"></tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<nav>
+  <button data-page="accueil" class="actif"><span class="ico">📊</span>Accueil</button>
+  <button data-page="ventes"><span class="ico">💰</span>Ventes</button>
+  <button data-page="appro"><span class="ico">📦</span>Achats</button>
+  <button data-page="depenses"><span class="ico">🧾</span>Dépenses</button>
+  <button data-page="produits"><span class="ico">🏷️</span>Produits</button>
+</nav>
+
+<script>
+/* =========================================================
+   Données : mêmes tables et mêmes champs que la base MySQL
+   (categorie_produit, produit, approvisionnement, vente, depense)
+   Enregistrées dans le navigateur (localStorage).
+   ========================================================= */
+const CLE = "ma_boutique_v1";
+const TABLES = ["categorie_produit", "produit", "approvisionnement", "vente", "depense"];
+
+let db = charger();
+
+function charger() {
+  try {
+    const brut = localStorage.getItem(CLE);
+    if (brut) {
+      const d = JSON.parse(brut);
+      TABLES.forEach(t => { if (!Array.isArray(d[t])) d[t] = []; });
+      return d;
+    }
+  } catch (e) { /* stockage indisponible : on travaille en mémoire */ }
+  const d = {};
+  TABLES.forEach(t => d[t] = []);
+  return d;
+}
+
+function sauver() {
+  try { localStorage.setItem(CLE, JSON.stringify(db)); } catch (e) {}
+}
+
+// Équivalent de AUTO_INCREMENT
+function nouvelId(table, champ) {
+  return db[table].reduce((max, l) => Math.max(max, l[champ]), 0) + 1;
+}
+
+/* ---------- Outils ---------- */
+const $ = id => document.getElementById(id);
+const fcfa = n => Math.round(n).toLocaleString("fr-FR") + " FCFA";
+const aujourdhui = () => new Date().toISOString().slice(0, 10);
+const dateFr = d => d.split("-").reverse().join("/");
+const echap = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+const produitParId = id => db.produit.find(p => p.id_produit === id);
+const categorieParId = id => db.categorie_produit.find(c => c.id_categorie === id);
+
+function stockProduit(id) {
+  const entrees = db.approvisionnement.filter(a => a.id_produit === id).reduce((s, a) => s + a.quantite, 0);
+  const sorties = db.vente.filter(v => v.id_produit === id).reduce((s, v) => s + v.quantite, 0);
+  return entrees - sorties;
+}
+
+/* ---------- Filtre par période ---------- */
+const periodes = { accueil: "jour", ventes: "tout", appro: "tout", depenses: "tout" };
+
+function dansPeriode(date, periode) {
+  if (periode === "tout") return true;
+  const today = aujourdhui();
+  if (periode === "jour") return date === today;
+  if (periode === "mois") return date.slice(0, 7) === today.slice(0, 7);
+  if (periode === "semaine") {
+    const limite = new Date();
+    limite.setDate(limite.getDate() - 6);
+    return date >= limite.toISOString().slice(0, 10) && date <= today;
+  }
+  return true;
+}
+
+document.querySelectorAll(".filtres").forEach(groupe => {
+  groupe.addEventListener("click", e => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    groupe.querySelectorAll("button").forEach(x => x.classList.remove("actif"));
+    b.classList.add("actif");
+    periodes[groupe.dataset.cible] = b.dataset.periode;
+    afficherTout();
+  });
+});
+
+/* ---------- Navigation ---------- */
+document.querySelectorAll("nav button").forEach(b => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll("nav button").forEach(x => x.classList.remove("actif"));
+    document.querySelectorAll("section").forEach(s => s.classList.remove("active"));
+    b.classList.add("actif");
+    $(b.dataset.page).classList.add("active");
+    window.scrollTo(0, 0);
+  });
+});
+
+/* ---------- Listes déroulantes ---------- */
+function remplirSelects() {
+  const optionsProduits = db.produit.length
+    ? db.produit.map(p => `<option value="${p.id_produit}">${echap(p.designation)}</option>`).join("")
+    : `<option value="">— Ajoutez d'abord un produit —</option>`;
+  ["v-produit", "a-produit"].forEach(id => {
+    const sel = $(id), val = sel.value;
+    sel.innerHTML = optionsProduits;
+    if (val && db.produit.some(p => String(p.id_produit) === val)) sel.value = val;
+  });
+
+  const sel = $("p-categorie"), val = sel.value;
+  sel.innerHTML = db.categorie_produit.length
+    ? db.categorie_produit.map(c => `<option value="${c.id_categorie}">${echap(c.libelle)}</option>`).join("")
+    : `<option value="">— Ajoutez d'abord une catégorie —</option>`;
+  if (val) sel.value = val;
+}
+
+/* ---------- Affichage ---------- */
+function ligneVide(colonnes, texte) {
+  return `<tr><td colspan="${colonnes}" class="vide">${texte}</td></tr>`;
+}
+
+function afficherAccueil() {
+  const p = periodes.accueil;
+  const totalVentes = db.vente.filter(v => dansPeriode(v.date_vente, p)).reduce((s, v) => s + v.quantite * v.prix_unitaire, 0);
+  const totalAppro = db.approvisionnement.filter(a => dansPeriode(a.date_appro, p)).reduce((s, a) => s + a.quantite * a.prix_achat, 0);
+  const totalDep = db.depense.filter(d => dansPeriode(d.date_depense, p)).reduce((s, d) => s + d.montant, 0);
+  const solde = totalVentes - totalAppro - totalDep;
+
+  $("kpi-ventes").textContent = fcfa(totalVentes);
+  $("kpi-appro").textContent = fcfa(totalAppro);
+  $("kpi-depenses").textContent = fcfa(totalDep);
+  $("kpi-solde").textContent = fcfa(solde);
+  $("kpi-solde").className = "valeur " + (solde >= 0 ? "positif" : "negatif");
+
+  // Stock
+  $("liste-stock").innerHTML = db.produit.length
+    ? db.produit.map(prod => {
+        const s = stockProduit(prod.id_produit);
+        const cat = categorieParId(prod.id_categorie);
+        const etat = s <= 0 ? `<span class="badge rupture">Rupture</span>`
+                   : s <= 5 ? `<span class="badge bas">Stock bas</span>`
+                   : `<span class="badge ok">OK</span>`;
+        return `<tr><td>${echap(prod.designation)}</td><td>${cat ? echap(cat.libelle) : "—"}</td><td class="num">${s}</td><td>${etat}</td></tr>`;
+      }).join("")
+    : ligneVide(4, "Aucun produit enregistré.");
+
+  // Top ventes sur la période
+  const cumul = {};
+  db.vente.filter(v => dansPeriode(v.date_vente, p)).forEach(v => {
+    cumul[v.id_produit] = cumul[v.id_produit] || { q: 0, m: 0 };
+    cumul[v.id_produit].q += v.quantite;
+    cumul[v.id_produit].m += v.quantite * v.prix_unitaire;
+  });
+  const top = Object.entries(cumul).sort((a, b) => b[1].m - a[1].m).slice(0, 5);
+  $("liste-top").innerHTML = top.length
+    ? top.map(([id, c]) => {
+        const prod = produitParId(Number(id));
+        return `<tr><td>${prod ? echap(prod.designation) : "—"}</td><td class="num">${c.q}</td><td class="num">${fcfa(c.m)}</td></tr>`;
+      }).join("")
+    : ligneVide(3, "Aucune vente sur cette période.");
+}
+
+function afficherVentes() {
+  const liste = db.vente.filter(v => dansPeriode(v.date_vente, periodes.ventes))
+    .sort((a, b) => b.date_vente.localeCompare(a.date_vente) || b.id_vente - a.id_vente);
+  $("liste-ventes").innerHTML = liste.length
+    ? liste.map(v => {
+        const prod = produitParId(v.id_produit);
+        return `<tr><td>${dateFr(v.date_vente)}</td><td>${prod ? echap(prod.designation) : "—"}</td>
+          <td class="num">${v.quantite}</td><td class="num">${fcfa(v.prix_unitaire)}</td>
+          <td class="num">${fcfa(v.quantite * v.prix_unitaire)}</td>
+          <td><button class="suppr" data-table="vente" data-champ="id_vente" data-id="${v.id_vente}">Suppr.</button></td></tr>`;
+      }).join("")
+    : ligneVide(6, "Aucune vente sur cette période.");
+}
+
+function afficherAppro() {
+  const liste = db.approvisionnement.filter(a => dansPeriode(a.date_appro, periodes.appro))
+    .sort((a, b) => b.date_appro.localeCompare(a.date_appro) || b.id_appro - a.id_appro);
+  $("liste-appro").innerHTML = liste.length
+    ? liste.map(a => {
+        const prod = produitParId(a.id_produit);
+        return `<tr><td>${dateFr(a.date_appro)}</td><td>${prod ? echap(prod.designation) : "—"}</td>
+          <td class="num">${a.quantite}</td><td class="num">${fcfa(a.prix_achat)}</td>
+          <td class="num">${fcfa(a.quantite * a.prix_achat)}</td>
+          <td><button class="suppr" data-table="approvisionnement" data-champ="id_appro" data-id="${a.id_appro}">Suppr.</button></td></tr>`;
+      }).join("")
+    : ligneVide(6, "Aucun approvisionnement sur cette période.");
+}
+
+function afficherDepenses() {
+  const liste = db.depense.filter(d => dansPeriode(d.date_depense, periodes.depenses))
+    .sort((a, b) => b.date_depense.localeCompare(a.date_depense) || b.id_depense - a.id_depense);
+  $("liste-depenses").innerHTML = liste.length
+    ? liste.map(d => `<tr><td>${dateFr(d.date_depense)}</td><td>${echap(d.libelle)}</td>
+        <td class="num">${fcfa(d.montant)}</td>
+        <td><button class="suppr" data-table="depense" data-champ="id_depense" data-id="${d.id_depense}">Suppr.</button></td></tr>`).join("")
+    : ligneVide(4, "Aucune dépense sur cette période.");
+}
+
+function afficherProduits() {
+  $("liste-produits").innerHTML = db.produit.length
+    ? db.produit.map(p => {
+        const cat = categorieParId(p.id_categorie);
+        return `<tr><td>${echap(p.designation)}</td><td>${cat ? echap(cat.libelle) : "—"}</td>
+          <td class="num">${fcfa(p.prix_vente)}</td>
+          <td><button class="suppr" data-table="produit" data-champ="id_produit" data-id="${p.id_produit}">Suppr.</button></td></tr>`;
+      }).join("")
+    : ligneVide(4, "Aucun produit. Ajoutez une catégorie puis un produit.");
+
+  $("liste-categories").innerHTML = db.categorie_produit.length
+    ? db.categorie_produit.map(c => {
+        const nb = db.produit.filter(p => p.id_categorie === c.id_categorie).length;
+        return `<tr><td>${echap(c.libelle)}</td><td class="num">${nb}</td>
+          <td><button class="suppr" data-table="categorie_produit" data-champ="id_categorie" data-id="${c.id_categorie}">Suppr.</button></td></tr>`;
+      }).join("")
+    : ligneVide(3, "Aucune catégorie.");
+}
+
+function afficherTout() {
+  remplirSelects();
+  afficherAccueil();
+  afficherVentes();
+  afficherAppro();
+  afficherDepenses();
+  afficherProduits();
+  majTotalVente();
+  majTotalAppro();
+}
+
+/* ---------- Suppression (respecte ON DELETE RESTRICT) ---------- */
+document.addEventListener("click", e => {
+  const b = e.target.closest(".suppr");
+  if (!b) return;
+  const table = b.dataset.table, champ = b.dataset.champ, id = Number(b.dataset.id);
+
+  if (table === "categorie_produit" && db.produit.some(p => p.id_categorie === id)) {
+    $("c-alerte").textContent = "Impossible : cette catégorie contient encore des produits.";
+    return;
+  }
+  if (table === "produit" &&
+      (db.vente.some(v => v.id_produit === id) || db.approvisionnement.some(a => a.id_produit === id))) {
+    $("p-alerte").textContent = "Impossible : ce produit a déjà des ventes ou des approvisionnements.";
+    return;
+  }
+  // Double clic de confirmation (évite les boîtes de dialogue bloquantes)
+  if (b.dataset.confirm !== "1") {
+    b.dataset.confirm = "1";
+    b.textContent = "Confirmer ?";
+    setTimeout(() => { if (b.isConnected) { b.dataset.confirm = ""; b.textContent = "Suppr."; } }, 3000);
+    return;
+  }
+  db[table] = db[table].filter(l => l[champ] !== id);
+  sauver();
+  $("c-alerte").textContent = "";
+  $("p-alerte").textContent = "";
+  afficherTout();
+});
+
+/* ---------- Formulaire : catégorie ---------- */
+$("form-categorie").addEventListener("submit", e => {
+  e.preventDefault();
+  const libelle = $("c-libelle").value.trim();
+  if (!libelle) return;
+  if (db.categorie_produit.some(c => c.libelle.toLowerCase() === libelle.toLowerCase())) {
+    $("c-alerte").textContent = "Cette catégorie existe déjà.";
+    return;
+  }
+  db.categorie_produit.push({ id_categorie: nouvelId("categorie_produit", "id_categorie"), libelle });
+  sauver();
+  $("c-alerte").textContent = "";
+  e.target.reset();
+  afficherTout();
+});
+
+/* ---------- Formulaire : produit ---------- */
+$("form-produit").addEventListener("submit", e => {
+  e.preventDefault();
+  const id_categorie = Number($("p-categorie").value);
+  if (!id_categorie) { $("p-alerte").textContent = "Ajoutez d'abord une catégorie."; return; }
+  db.produit.push({
+    id_produit: nouvelId("produit", "id_produit"),
+    designation: $("p-designation").value.trim(),
+    prix_vente: Number($("p-prix").value),
+    id_categorie
+  });
+  sauver();
+  $("p-alerte").textContent = "";
+  e.target.reset();
+  afficherTout();
+});
+
+/* ---------- Formulaire : vente ---------- */
+function majTotalVente() {
+  const q = Number($("v-quantite").value) || 0, p = Number($("v-prix").value) || 0;
+  $("v-total").textContent = fcfa(q * p);
+  const id = Number($("v-produit").value);
+  if (id && q > 0) {
+    const s = stockProduit(id);
+    $("v-alerte").textContent = q > s ? `Attention : il ne reste que ${s} en stock.` : "";
+  } else {
+    $("v-alerte").textContent = "";
+  }
+}
+// Le prix unitaire reprend le prix de vente du produit choisi
+$("v-produit").addEventListener("change", () => {
+  const prod = produitParId(Number($("v-produit").value));
+  if (prod) $("v-prix").value = prod.prix_vente;
+  majTotalVente();
+});
+["v-quantite", "v-prix"].forEach(id => $(id).addEventListener("input", majTotalVente));
+
+$("form-vente").addEventListener("submit", e => {
+  e.preventDefault();
+  const id_produit = Number($("v-produit").value);
+  if (!id_produit) { $("v-alerte").textContent = "Ajoutez d'abord un produit."; return; }
+  db.vente.push({
+    id_vente: nouvelId("vente", "id_vente"),
+    date_vente: $("v-date").value,
+    id_produit,
+    quantite: Number($("v-quantite").value),
+    prix_unitaire: Number($("v-prix").value)
+  });
+  sauver();
+  $("v-quantite").value = "";
+  afficherTout();
+});
+
+/* ---------- Formulaire : approvisionnement ---------- */
+function majTotalAppro() {
+  const q = Number($("a-quantite").value) || 0, p = Number($("a-prix").value) || 0;
+  $("a-total").textContent = fcfa(q * p);
+}
+["a-quantite", "a-prix"].forEach(id => $(id).addEventListener("input", majTotalAppro));
+
+$("form-appro").addEventListener("submit", e => {
+  e.preventDefault();
+  const id_produit = Number($("a-produit").value);
+  if (!id_produit) return;
+  db.approvisionnement.push({
+    id_appro: nouvelId("approvisionnement", "id_appro"),
+    date_appro: $("a-date").value,
+    id_produit,
+    quantite: Number($("a-quantite").value),
+    prix_achat: Number($("a-prix").value)
+  });
+  sauver();
+  $("a-quantite").value = "";
+  $("a-prix").value = "";
+  afficherTout();
+});
+
+/* ---------- Formulaire : dépense ---------- */
+$("form-depense").addEventListener("submit", e => {
+  e.preventDefault();
+  db.depense.push({
+    id_depense: nouvelId("depense", "id_depense"),
+    date_depense: $("d-date").value,
+    libelle: $("d-libelle").value.trim(),
+    montant: Number($("d-montant").value)
+  });
+  sauver();
+  $("d-libelle").value = "";
+  $("d-montant").value = "";
+  afficherTout();
+});
+
+/* ---------- Démarrage ---------- */
+["v-date", "a-date", "d-date"].forEach(id => $(id).value = aujourdhui());
+afficherTout();
+const premier = produitParId(Number($("v-produit").value));
+if (premier) $("v-prix").value = premier.prix_vente;
+</script>
+</body>
+</html>
